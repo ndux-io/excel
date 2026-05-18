@@ -37,11 +37,23 @@ int lettersToNumeric(String letters) {
   return sum;
 }
 
-Iterable<XmlElement> _findRows(XmlElement table) {
+Iterable<XmlElement> _findRows(
+  XmlElement table, {
+  bool namespaceTolerant = false,
+}) {
+  if (namespaceTolerant) {
+    return table.findElements('row', namespace: '*');
+  }
   return table.findElements('row');
 }
 
-Iterable<XmlElement> _findCells(XmlElement row) {
+Iterable<XmlElement> _findCells(
+  XmlElement row, {
+  bool namespaceTolerant = false,
+}) {
+  if (namespaceTolerant) {
+    return row.findElements('c', namespace: '*');
+  }
   return row.findElements('c');
 }
 

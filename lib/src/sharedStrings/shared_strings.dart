@@ -164,7 +164,7 @@ class SharedString {
 
   String get stringValue {
     var buffer = StringBuffer();
-    node.findAllElements('t').forEach((child) {
+    node.findAllElements('t', namespace: '*').forEach((child) {
       if (child.parentElement == null ||
           child.parentElement!.name.local != 'rPh') {
         buffer.write(Parser._parseValue(child));

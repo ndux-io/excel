@@ -4,16 +4,65 @@ class Parser {
   final Excel _excel;
   final List<String> _rId = [];
   final Map<String, String> _worksheetTargets = {};
+  bool _namespaceTolerant = false;
 
   Parser._(this._excel);
 
   void _startParsing() {
+    _parseWorkbook();
+    if (_excel._sheetMap.isEmpty) {
+      _resetParsedState();
+      _namespaceTolerant = true;
+      _parseWorkbook();
+    }
+  }
+
+  void _parseWorkbook() {
     _putContentXml();
     _parseRelations();
     _parseStyles(_excel._stylesTarget);
     _parseSharedStrings();
     _parseContent();
     _parseMergedCells();
+  }
+
+  void _resetParsedState() {
+    _rId.clear();
+    _worksheetTargets.clear();
+
+    _excel._sheets.clear();
+    _excel._xmlFiles.clear();
+    _excel._xmlSheetId.clear();
+    _excel._cellStyleReferenced.clear();
+    _excel._sheetMap.clear();
+
+    _excel._cellStyleList.clear();
+    _excel._patternFill.clear();
+    _excel._mergeChangeLook.clear();
+    _excel._rtlChangeLook.clear();
+    _excel._fontStyleList.clear();
+    _excel._numFmtIds.clear();
+    _excel._numFormats.clear();
+    _excel._borderSetList.clear();
+    _excel._sharedStrings.clear();
+
+    _excel._stylesTarget = '';
+    _excel._sharedStringsTarget = '';
+    _excel._defaultSheet = null;
+  }
+
+  Iterable<XmlElement> _findAll(XmlNode node, String name) {
+    if (_namespaceTolerant) {
+      return node.findAllElements(name, namespace: '*');
+    }
+    return node.findAllElements(name);
+  }
+
+  Iterable<XmlElement> _findChildren(XmlNode node, String name) {
+    if (_namespaceTolerant) {
+      return node.findElements(name, namespace: '*');
+    }
+    return node.findElements(name);
   }
 
   void _normalizeTable(Sheet sheet) {
@@ -41,7 +90,7 @@ class Parser {
       var document = XmlDocument.parse(utf8.decode(relations.content));
       _excel._xmlFiles['xl/_rels/workbook.xml.rels'] = document;
 
-      document.findAllElements('Relationship').forEach((node) {
+      _findAll(document, 'Relationship').forEach((node) {
         String? id = node.getAttribute('Id');
         String? target = node.getAttribute('Target');
         if (target != null) {
@@ -79,8 +128,8 @@ class Parser {
       if (_excel._xmlFiles.containsKey("xl/_rels/workbook.xml.rels")) {
         int rIdNumber = _getAvailableRid();
 
-        _excel._xmlFiles["xl/_rels/workbook.xml.rels"]
-            ?.findAllElements('Relationships')
+        _findAll(_excel._xmlFiles["xl/_rels/workbook.xml.rels"]!,
+                'Relationships')
             .first
             .children
             .add(XmlElement(
@@ -99,17 +148,17 @@ class Parser {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml";
         bool contain = true;
 
-        _excel._xmlFiles["[Content_Types].xml"]
-            ?.findAllElements('Override')
-            .forEach((node) {
-          var value = node.getAttribute('ContentType');
-          if (value == content) {
-            contain = false;
-          }
-        });
+        final contentTypes = _excel._xmlFiles["[Content_Types].xml"];
+        if (contentTypes != null) {
+          _findAll(contentTypes, 'Override').forEach((node) {
+            var value = node.getAttribute('ContentType');
+            if (value == content) {
+              contain = false;
+            }
+          });
+        }
         if (contain) {
-          _excel._xmlFiles["[Content_Types].xml"]
-              ?.findAllElements('Types')
+          _findAll(_excel._xmlFiles["[Content_Types].xml"]!, 'Types')
               .first
               .children
               .add(XmlElement(
@@ -132,7 +181,7 @@ class Parser {
     var document = XmlDocument.parse(utf8.decode(sharedStrings.content));
     _excel._xmlFiles["xl/${_excel._sharedStringsTarget}"] = document;
 
-    document.findAllElements('si').forEach((node) {
+    _findAll(document, 'si').forEach((node) {
       _parseSharedString(node);
     });
   }
@@ -151,7 +200,7 @@ class Parser {
     var document = XmlDocument.parse(utf8.decode(workbook.content));
     _excel._xmlFiles["xl/workbook.xml"] = document;
 
-    document.findAllElements('sheet').forEach((node) {
+    _findAll(document, 'sheet').forEach((node) {
       if (run) {
         _parseTable(node);
       } else {
@@ -177,7 +226,7 @@ class Parser {
       final sheet = _excel._sheetMap[sheetName]!;
 
       final worksheetNode = sheetDataNode.parent;
-      worksheetNode!.findAllElements('mergeCell').forEach((element) {
+      _findAll(worksheetNode!, 'mergeCell').forEach((element) {
         String? ref = element.getAttribute('ref');
         if (ref != null && ref.contains(':') && ref.split(':').length == 2) {
           if (!sheet._spannedItems.contains(ref)) {
@@ -249,12 +298,12 @@ class Parser {
       _excel._cellStyleList = <CellStyle>[];
       _excel._borderSetList = <_BorderSet>[];
 
-      Iterable<XmlElement> fontList = document.findAllElements('font');
+      Iterable<XmlElement> fontList = _findAll(document, 'font');
 
-      document.findAllElements('patternFill').forEach((node) {
+      _findAll(document, 'patternFill').forEach((node) {
         String patternType = node.getAttribute('patternType') ?? '', rgb;
         if (node.children.isNotEmpty) {
-          node.findElements('fgColor').forEach((child) {
+          _findChildren(node, 'fgColor').forEach((child) {
             rgb = child.getAttribute('rgb') ?? '';
             _excel._patternFill.add(rgb);
           });
@@ -263,7 +312,7 @@ class Parser {
         }
       });
 
-      document.findAllElements('border').forEach((node) {
+      _findAll(document, 'border').forEach((node) {
         final diagonalUp = !['0', 'false', null]
             .contains(node.getAttribute('diagonalUp')?.trim());
         final diagonalDown = !['0', 'false', null]
@@ -280,7 +329,7 @@ class Parser {
         for (var elementName in borderElementNamesList) {
           XmlElement? element;
           try {
-            element = node.findElements(elementName).single;
+            element = _findChildren(node, elementName).single;
           } on StateError catch (_) {
             // Either there is no element, or there are too many ones.
             // Silently ignore this element.
@@ -293,7 +342,8 @@ class Parser {
 
           String? borderColorHex;
           try {
-            final color = element?.findElements('color').single;
+            final color =
+                element == null ? null : _findChildren(element, 'color').single;
             borderColorHex = color?.getAttribute('rgb')?.trim();
           } on StateError catch (_) {}
 
@@ -314,8 +364,8 @@ class Parser {
         _excel._borderSetList.add(borderSet);
       });
 
-      document.findAllElements('numFmts').forEach((node1) {
-        node1.findAllElements('numFmt').forEach((node) {
+      _findAll(document, 'numFmts').forEach((node1) {
+        _findAll(node1, 'numFmt').forEach((node) {
           final numFmtId = int.parse(node.getAttribute('numFmtId')!);
           final formatCode = node.getAttribute('formatCode')!;
           if (numFmtId >= 164) {
@@ -325,8 +375,8 @@ class Parser {
         });
       });
 
-      document.findAllElements('cellXfs').forEach((node1) {
-        node1.findAllElements('xf').forEach((node) {
+      _findAll(document, 'cellXfs').forEach((node1) {
+        _findAll(node1, 'xf').forEach((node) {
           final numFmtId = _getFontIndex(node, 'numFmtId');
           _excel._numFmtIds.add(numFmtId);
 
@@ -423,7 +473,7 @@ class Parser {
           }
 
           if (node.children.isNotEmpty) {
-            node.findElements('alignment').forEach((child) {
+            _findChildren(node, 'alignment').forEach((child) {
               if (_getFontIndex(child, 'wrapText') == 1) {
                 textWrapping = TextWrapping.WrapText;
               } else if (_getFontIndex(child, 'shrinkToFit') == 1) {
@@ -495,7 +545,7 @@ class Parser {
   }
 
   dynamic _nodeChildren(XmlElement node, String child, {var attribute}) {
-    Iterable<XmlElement> ele = node.findElements(child);
+    Iterable<XmlElement> ele = _findChildren(node, child);
     if (ele.isNotEmpty) {
       if (attribute != null) {
         var attr = ele.first.getAttribute(attribute);
@@ -537,20 +587,20 @@ class Parser {
     file!.decompress();
 
     var content = XmlDocument.parse(utf8.decode(file.content));
-    var worksheet = content.findElements('worksheet').first;
+    var worksheet = _findChildren(content, 'worksheet').first;
 
     ///
     /// check for right to left view
     ///
-    var sheetView = worksheet.findAllElements('sheetView').toList();
+    var sheetView = _findAll(worksheet, 'sheetView').toList();
     if (sheetView.isNotEmpty) {
       var sheetViewNode = sheetView.first;
       var rtl = sheetViewNode.getAttribute('rightToLeft');
       sheetObject.isRTL = rtl != null && rtl == '1';
     }
-    var sheet = worksheet.findElements('sheetData').first;
+    var sheet = _findChildren(worksheet, 'sheetData').first;
 
-    _findRows(sheet).forEach((child) {
+    _findRows(sheet, namespaceTolerant: _namespaceTolerant).forEach((child) {
       _parseRow(child, sheetObject, name);
     });
 
@@ -571,7 +621,7 @@ class Parser {
       return;
     }
 
-    _findCells(node).forEach((child) {
+    _findCells(node, namespaceTolerant: _namespaceTolerant).forEach((child) {
       _parseCell(child, sheetObject, rowIndex, name);
     });
   }
@@ -606,34 +656,35 @@ class Parser {
       // sharedString
       case 's':
         final sharedString = _excel._sharedStrings
-            .value(int.parse(_parseValue(node.findElements('v').first)));
+            .value(int.parse(_parseValue(_findChildren(node, 'v').first)));
         value = TextCellValue.span(sharedString!.textSpan);
         break;
       // boolean
       case 'b':
-        value = BoolCellValue(_parseValue(node.findElements('v').first) == '1');
+        value =
+            BoolCellValue(_parseValue(_findChildren(node, 'v').first) == '1');
         break;
       // error
       case 'e':
       // formula
       case 'str':
-        value = FormulaCellValue(_parseValue(node.findElements('v').first));
+        value = FormulaCellValue(_parseValue(_findChildren(node, 'v').first));
         break;
       // inline string
       case 'inlineStr':
         // <c r='B2' t='inlineStr'>
         // <is><t>Dartonico</t></is>
         // </c>
-        value = TextCellValue(_parseValue(node.findAllElements('t').first));
+        value = TextCellValue(_parseValue(_findAll(node, 't').first));
         break;
       // number
       case 'n':
       default:
-        var formulaNode = node.findElements('f');
+        var formulaNode = _findChildren(node, 'f');
         if (formulaNode.isNotEmpty) {
           value = FormulaCellValue(_parseValue(formulaNode.first).toString());
         } else {
-          final vNode = node.findElements('v').firstOrNull;
+          final vNode = _findChildren(node, 'v').firstOrNull;
           if (vNode == null) {
             value = null;
           } else if (s1 != null) {
@@ -693,7 +744,7 @@ class Parser {
   void _createSheet(String newSheet) {
     /*
     List<XmlNode> list = _excel._xmlFiles['xl/workbook.xml']
-        .findAllElements('sheets')
+        .findAllElements('sheets', namespace: '*')
         .first
         .children;
     if (list.isEmpty) {
@@ -703,19 +754,20 @@ class Parser {
     int _sheetId = -1;
     List<int> sheetIdList = <int>[];
 
-    _excel._xmlFiles['xl/workbook.xml']
-        ?.findAllElements('sheet')
-        .forEach((sheetIdNode) {
-      var sheetId = sheetIdNode.getAttribute('sheetId');
-      if (sheetId != null) {
-        int t = int.parse(sheetId.toString());
-        if (!sheetIdList.contains(t)) {
-          sheetIdList.add(t);
+    final workbookXml = _excel._xmlFiles['xl/workbook.xml'];
+    if (workbookXml != null) {
+      _findAll(workbookXml, 'sheet').forEach((sheetIdNode) {
+        var sheetId = sheetIdNode.getAttribute('sheetId');
+        if (sheetId != null) {
+          int t = int.parse(sheetId.toString());
+          if (!sheetIdList.contains(t)) {
+            sheetIdList.add(t);
+          }
+        } else {
+          _damagedExcel(text: 'Corrupted Sheet Indexing');
         }
-      } else {
-        _damagedExcel(text: 'Corrupted Sheet Indexing');
-      }
-    });
+      });
+    }
 
     sheetIdList.sort();
 
@@ -736,8 +788,7 @@ class Parser {
     int sheetNumber = _sheetId;
     int ridNumber = _getAvailableRid();
 
-    _excel._xmlFiles['xl/_rels/workbook.xml.rels']
-        ?.findAllElements('Relationships')
+    _findAll(_excel._xmlFiles['xl/_rels/workbook.xml.rels']!, 'Relationships')
         .first
         .children
         .add(XmlElement(XmlName('Relationship'), <XmlAttribute>[
@@ -750,8 +801,7 @@ class Parser {
       _rId.add('rId$ridNumber');
     }
 
-    _excel._xmlFiles['xl/workbook.xml']
-        ?.findAllElements('sheets')
+    _findAll(_excel._xmlFiles['xl/workbook.xml']!, 'sheets')
         .first
         .children
         .add(XmlElement(
@@ -779,8 +829,7 @@ class Parser {
     _excel._xmlFiles['xl/worksheets/sheet$sheetNumber.xml'] = document;
     _excel._xmlSheetId[newSheet] = 'xl/worksheets/sheet$sheetNumber.xml';
 
-    _excel._xmlFiles['[Content_Types].xml']
-        ?.findAllElements('Types')
+    _findAll(_excel._xmlFiles['[Content_Types].xml']!, 'Types')
         .first
         .children
         .add(XmlElement(
@@ -793,13 +842,12 @@ class Parser {
           ],
         ));
     if (_excel._xmlFiles['xl/workbook.xml'] != null) {
-      _parseTable(
-          _excel._xmlFiles['xl/workbook.xml']!.findAllElements('sheet').last);
+      _parseTable(_findAll(_excel._xmlFiles['xl/workbook.xml']!, 'sheet').last);
     }
   }
 
   void _parseHeaderFooter(XmlElement worksheet, Sheet sheetObject) {
-    final results = worksheet.findAllElements("headerFooter");
+    final results = _findAll(worksheet, "headerFooter");
     if (results.isEmpty) return;
 
     final headerFooterElement = results.first;
@@ -813,7 +861,7 @@ class Parser {
       <sheetFormatPr baseColWidth="10" defaultColWidth="26.33203125" defaultRowHeight="13" x14ac:dyDescent="0.15" />
     */
     Iterable<XmlElement> results;
-    results = worksheet.findAllElements("sheetFormatPr");
+    results = _findAll(worksheet, "sheetFormatPr");
     if (results.isNotEmpty) {
       results.forEach((element) {
         double? defaultColWidth;
@@ -843,7 +891,7 @@ class Parser {
       <col min="4" max="4" width="26.5" customWidth="1"/>, 
       <col min="6" max="6" width="31.33203125" customWidth="1"/>
     */
-    results = worksheet.findAllElements("col");
+    results = _findAll(worksheet, "col");
     if (results.isNotEmpty) {
       results.forEach((element) {
         String? colAttribute =
@@ -866,7 +914,7 @@ class Parser {
       example XML content
       <row r="1" spans="1:2" ht="44" customHeight="1" x14ac:dyDescent="0.15">
     */
-    results = worksheet.findAllElements("row");
+    results = _findAll(worksheet, "row");
     if (results.isNotEmpty) {
       results.forEach((element) {
         String? rowAttribute =
