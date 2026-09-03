@@ -96,12 +96,18 @@ class Parser {
         if (target != null) {
           switch (node.getAttribute('Type')) {
             case _relationshipsStyles:
+              target = _normalizeWorkbookRelationshipTarget(target);
+              node.setAttribute('Target', target);
               _excel._stylesTarget = target;
               break;
             case _relationshipsWorksheet:
+              target = _normalizeWorkbookRelationshipTarget(target);
+              node.setAttribute('Target', target);
               if (id != null) _worksheetTargets[id] = target;
               break;
             case _relationshipsSharedStrings:
+              target = _normalizeWorkbookRelationshipTarget(target);
+              node.setAttribute('Target', target);
               _excel._sharedStringsTarget = target;
               break;
           }
@@ -113,6 +119,13 @@ class Parser {
     } else {
       _damagedExcel();
     }
+  }
+
+  String _normalizeWorkbookRelationshipTarget(String target) {
+    const absoluteWorkbookPathPrefix = '/xl/';
+    return target.startsWith(absoluteWorkbookPathPrefix)
+        ? target.substring(absoluteWorkbookPathPrefix.length)
+        : target;
   }
 
   void _parseSharedStrings() {
