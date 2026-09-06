@@ -49,6 +49,7 @@ class Parser {
     _excel._stylesTarget = '';
     _excel._sharedStringsTarget = '';
     _excel._defaultSheet = null;
+    _excel._uses1904DateSystem = false;
   }
 
   Iterable<XmlElement> _findAll(XmlNode node, String name) {
@@ -212,6 +213,11 @@ class Parser {
     workbook!.decompress();
     var document = XmlDocument.parse(utf8.decode(workbook.content));
     _excel._xmlFiles["xl/workbook.xml"] = document;
+    final date1904 = document
+        .findAllElements('workbookPr', namespace: '*')
+        .firstOrNull
+        ?.getAttribute('date1904');
+    _excel._uses1904DateSystem = date1904 == '1' || date1904 == 'true';
 
     _findAll(document, 'sheet').forEach((node) {
       if (run) {
@@ -690,7 +696,13 @@ class Parser {
         // </c>
         // Writers such as openpyxl omit the text node for empty strings.
         final textNode = _findAll(node, 't').firstOrNull;
-        value = textNode == null ? null : TextCellValue(_parseValue(textNode));
+        final inlineString = _findChildren(node, 'is').firstOrNull;
+        value = textNode == null || inlineString == null
+            ? null
+            : TextCellValue.span(SharedString(node: inlineString).textSpan);
+        break;
+      case 'd':
+        value = _parseIsoDate(_parseValue(_findChildren(node, 'v').first));
         break;
       // number
       case 'n':
@@ -725,6 +737,39 @@ class Parser {
       value,
       cellStyle: _excel._cellStyleList[s],
     );
+  }
+
+  CellValue _parseIsoDate(String value) {
+    final match = RegExp(
+      r'^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(?:Z|[+-]\d{2}:\d{2})?)?$',
+    ).firstMatch(value);
+    if (match == null) throw FormatException('Invalid ISO date cell');
+    final year = int.parse(match[1]!);
+    final month = int.parse(match[2]!);
+    final day = int.parse(match[3]!);
+    final date = DateTime.utc(year, month, day);
+    if (date.year != year ||
+        date.month != month ||
+        date.day != day ||
+        (match[4] != null &&
+            (int.parse(match[4]!) > 23 ||
+                int.parse(match[5]!) > 59 ||
+                int.parse(match[6]!) > 59)) ||
+        DateTime.tryParse(value) == null) {
+      throw FormatException('Invalid ISO date cell');
+    }
+    if (match[4] == null) return DateCellValue.fromDateTime(date);
+    // Keep the cell's wall-clock fields instead of converting its timezone.
+    final fraction = (match[7] ?? '').padRight(6, '0');
+    return DateTimeCellValue.fromDateTime(DateTime.utc(
+        year,
+        month,
+        day,
+        int.parse(match[4]!),
+        int.parse(match[5]!),
+        int.parse(match[6]!),
+        int.parse(fraction.substring(0, 3)),
+        int.parse(fraction.substring(3))));
   }
 
   static String _parseValue(XmlElement node) {
