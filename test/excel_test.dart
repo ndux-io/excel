@@ -363,7 +363,7 @@ void main() {
     var newFileBytes = File(newFile).readAsBytesSync();
     var newExcel = Excel.decodeBytes(newFileBytes);
     // delete tmp folder
-    new Directory('./tmp').delete(recursive: true);
+    new Directory('./tmp').deleteSync(recursive: true);
     expect(newExcel.sheets.entries.length, equals(1));
     expect(newExcel.tables['Sheet1']!.rows[1][1]!.value.toString(),
         equals('Washington'));
@@ -405,7 +405,7 @@ void main() {
     var newExcel = Excel.decodeBytes(newFileBytes);
 
     // delete tmp folder
-    new Directory('./tmp').delete(recursive: true);
+    new Directory('./tmp').deleteSync(recursive: true);
     expect(newExcel.sheets.entries.length, equals(1));
     expect(newExcel.tables['Sheet1']!.maxColumns, equals(5));
     expect(
@@ -463,7 +463,7 @@ void main() {
     var newFileBytes = File(newFile).readAsBytesSync();
     var newExcel = Excel.decodeBytes(newFileBytes);
     // delete tmp folder
-    new Directory('./tmp').delete(recursive: true);
+    new Directory('./tmp').deleteSync(recursive: true);
     expect(newExcel.sheets.entries.length, equals(1));
 
     expect(newExcel.tables['Sheet1']!.rows[0][0]!.value.toString(),
@@ -526,7 +526,7 @@ void main() {
         .getAttributeNode("uniqueCount");
 
     // delete tmp folder
-    new Directory('./tmp').delete(recursive: true);
+    new Directory('./tmp').deleteSync(recursive: true);
 
     expect(oldUniqueCount!.value, equals(newUniqueCount!.value));
     expect(oldCount!.value, "12");
@@ -548,7 +548,7 @@ void main() {
     var newFileBytes = File(newFile).readAsBytesSync();
     var newExcel = Excel.decodeBytes(newFileBytes);
     // delete tmp folder
-    new Directory('./tmp').delete(recursive: true);
+    new Directory('./tmp').deleteSync(recursive: true);
     expect(newExcel.sheets.entries.length, equals(1));
 
     expect(newExcel.tables['Sheet1']!.rows[0][0]!.value.toString(),
@@ -584,7 +584,7 @@ void main() {
           newExcel.tables['Sheet1']!.headerFooter!.oddFooter!, equals('Bar'));
 
       // delete tmp folder only when test is successful (diagnosis)
-      new Directory('./tmp').delete(recursive: true);
+      new Directory('./tmp').deleteSync(recursive: true);
     });
 
     test("Save empty Workbook", () {
@@ -825,7 +825,7 @@ void main() {
       expect(cellStyleB1?.bottomBorder, equals(borderMediumRed));
 
       // delete tmp folder only when test is successful (diagnosis)
-      new Directory('./tmp').delete(recursive: true);
+      new Directory('./tmp').deleteSync(recursive: true);
     });
   });
 
@@ -898,7 +898,7 @@ void main() {
           equals('ロケール選択'));
 
       // delete tmp folder only when test is successful (diagnosis)
-      new Directory('./tmp').delete(recursive: true);
+      new Directory('./tmp').deleteSync(recursive: true);
     });
   });
 
@@ -1056,7 +1056,7 @@ void main() {
       var newFileBytes = File(newFile).readAsBytesSync();
       var newExcel = Excel.decodeBytes(newFileBytes);
       // delete tmp folder
-      new Directory('./tmp').delete(recursive: true);
+      new Directory('./tmp').deleteSync(recursive: true);
 
       Sheet? newSheet = newExcel.tables["Spanned Items"]!;
 
