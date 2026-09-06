@@ -79,7 +79,7 @@ class SharedString {
 
   TextSpan get textSpan {
     bool getBool(XmlElement element) {
-      return bool.tryParse(element.getAttribute('val') ?? '') ?? true;
+      return !const ['0', 'false'].contains(element.getAttribute('val'));
     }
 
     int getDouble(XmlElement element) {
@@ -87,19 +87,19 @@ class SharedString {
       return double.parse(element.getAttribute('val')!).toInt();
     }
 
-    String? text;
-    List<TextSpan>? children;
+    final children = <TextSpan>[];
 
     /// SharedStringItem
     /// https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.sharedstringitem?view=openxml-3.0.1
-    assert(node.localName == 'si'); //18.4.8 si (String Item)
+    assert(node.localName == 'si' ||
+        node.localName == 'is'); //18.4.8 si (String Item)
 
     for (final child in node.childElements) {
       switch (child.localName) {
         /// Text
         /// https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.text?view=openxml-3.0.1
         case 't': //18.4.12 t (Text)
-          text = (text ?? '') + child.innerText;
+          children.add(TextSpan(text: Parser._parseValue(child)));
           break;
 
         /// Rich Text Run
@@ -145,8 +145,8 @@ class SharedString {
 
               /// Text
               case 't': //18.4.12 t (Text)
-                if (children == null) children = [];
-                children.add(TextSpan(text: runChild.innerText, style: style));
+                children.add(
+                    TextSpan(text: Parser._parseValue(runChild), style: style));
                 break;
             }
           }
@@ -159,7 +159,10 @@ class SharedString {
       }
     }
 
-    return TextSpan(text: text, children: children);
+    if (children.length == 1 && children.single.style == null) {
+      return children.single;
+    }
+    return TextSpan(children: children);
   }
 
   String get stringValue {

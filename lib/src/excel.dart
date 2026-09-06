@@ -23,6 +23,12 @@ Excel _newExcel(Archive archive) {
 
 /// Decode a excel file.
 class Excel {
+  bool _uses1904DateSystem = false;
+
+  /// Whether the source workbook declares the 1904 date system.
+  /// Serial dates are not converted between date systems by the decoder.
+  bool get uses1904DateSystem => _uses1904DateSystem;
+
   bool _styleChanges = false;
   bool _mergeChanges = false;
   bool _rtlChanges = false;

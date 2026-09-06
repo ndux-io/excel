@@ -206,41 +206,27 @@ const Map<int, NumFormat> _standardNumFormats = {
 };
 
 bool _formatCodeLooksLikeDateTime(String formatCode) {
-  // for comparison, remove any character that is quoted or escaped
-  var inEscape = false;
   var inQuotes = false;
-  for (var i = 0; i < formatCode.length; ++i) {
-    final c = formatCode[i];
-    if (inEscape) {
-      inEscape = false;
-      continue;
-    } else if (c == '\\') {
-      inEscape = true;
+  for (var i = 0; i < formatCode.length; i++) {
+    final c = formatCode[i].toLowerCase();
+    if (c == '"') {
+      inQuotes = !inQuotes;
       continue;
     }
-    if (inQuotes) {
-      if (c == '"') {
-        inQuotes = false;
-      }
-      continue;
-    } else if (c == '"') {
-      inQuotes = true;
+    if (inQuotes) continue;
+    if (c == r'\' || c == '_' || c == '*') {
+      i++;
       continue;
     }
-
-    switch (c) {
-      case 'y':
-      case 'm':
-      case 'd':
-      case 'h':
-      case 's':
-        return true;
-      case ';':
-        // separator only exists for decimal formats
-        return false;
-      default:
-        break;
+    if (c == '[') {
+      final end = formatCode.indexOf(']', i + 1);
+      if (end < 0) return false;
+      final token = formatCode.substring(i + 1, end).toLowerCase();
+      if (RegExp(r'^(h+|m+|s+)$').hasMatch(token)) return true;
+      i = end;
+      continue;
     }
+    if ('ymdhs'.contains(c)) return true;
   }
   return false;
 }
