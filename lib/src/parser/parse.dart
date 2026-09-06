@@ -688,7 +688,9 @@ class Parser {
         // <c r='B2' t='inlineStr'>
         // <is><t>Dartonico</t></is>
         // </c>
-        value = TextCellValue(_parseValue(_findAll(node, 't').first));
+        // Writers such as openpyxl omit the text node for empty strings.
+        final textNode = _findAll(node, 't').firstOrNull;
+        value = textNode == null ? null : TextCellValue(_parseValue(textNode));
         break;
       // number
       case 'n':
